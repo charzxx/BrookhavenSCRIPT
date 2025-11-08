@@ -1,108 +1,105 @@
----@diagnostic disable: undefined-global
+--// Mini Editor All-in-One LocalScript
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
 
--- Safe Rayfield loader
-local ok, Rayfield = pcall(function()
-	return loadstring(game:HttpGet("https://sirius.menu/rayfield", true))()
+-- Ensure RemoteEvents exist
+local RunCodeEvent = ReplicatedStorage:FindFirstChild("RunCodeEvent") or Instance.new("RemoteEvent", ReplicatedStorage)
+RunCodeEvent.Name = "RunCodeEvent"
+
+local RemoteOutput = ReplicatedStorage:FindFirstChild("RemoteOutput") or Instance.new("RemoteEvent", ReplicatedStorage)
+RemoteOutput.Name = "RemoteOutput"
+
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "MiniEditorGUI"
+screenGui.Parent = StarterGui
+screenGui.ResetOnSpawn = false
+
+-- ======= Input TextBox =======
+local input = Instance.new("TextBox")
+input.Name = "Input"
+input.Parent = screenGui
+input.Size = UDim2.new(1, -20, 0, 200)
+input.Position = UDim2.new(0, 10, 0, 10)
+input.BackgroundColor3 = Color3.fromRGB(30,30,30)
+input.TextColor3 = Color3.new(1,1,1)
+input.Font = Enum.Font.SourceSans
+input.TextSize = 18
+input.MultiLine = true
+input.ClearTextOnFocus = false
+input.TextWrapped = false
+input.PlaceholderText = "Type Lua code here..."
+input.TextXAlignment = Enum.TextXAlignment.Left
+input.TextYAlignment = Enum.TextYAlignment.Top
+input.LineHeight = 1.2
+
+-- ======= Run Button =======
+local runButton = Instance.new("TextButton")
+runButton.Name = "RunButton"
+runButton.Parent = screenGui
+runButton.Size = UDim2.new(0, 100, 0, 40)
+runButton.Position = UDim2.new(0, 10, 0, 220)
+runButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
+runButton.TextColor3 = Color3.new(1,1,1)
+runButton.Font = Enum.Font.SourceSansBold
+runButton.TextSize = 18
+runButton.Text = "Run"
+
+-- ======= Output Button =======
+local outputButton = Instance.new("TextButton")
+outputButton.Name = "OutputButton"
+outputButton.Parent = screenGui
+outputButton.Size = UDim2.new(0, 100, 0, 40)
+outputButton.Position = UDim2.new(0, 120, 0, 220)
+outputButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
+outputButton.TextColor3 = Color3.new(1,1,1)
+outputButton.Font = Enum.Font.SourceSansBold
+outputButton.TextSize = 18
+outputButton.Text = "Output"
+
+-- ======= Console Frame =======
+local consoleFrame = Instance.new("ScrollingFrame")
+consoleFrame.Name = "ConsoleFrame"
+consoleFrame.Parent = screenGui
+consoleFrame.Size = UDim2.new(1, -20, 0, 200)
+consoleFrame.Position = UDim2.new(0, 10, 0, 270)
+consoleFrame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+consoleFrame.Visible = false
+consoleFrame.ScrollBarThickness = 6
+consoleFrame.CanvasSize = UDim2.new(0,0,0,0)
+consoleFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+local consoleText = Instance.new("TextLabel")
+consoleText.Name = "ConsoleText"
+consoleText.Parent = consoleFrame
+consoleText.Size = UDim2.new(1,0,0,0)
+consoleText.Position = UDim2.new(0,0,0,0)
+consoleText.BackgroundTransparency = 1
+consoleText.TextXAlignment = Enum.TextXAlignment.Left
+consoleText.TextYAlignment = Enum.TextYAlignment.Top
+consoleText.TextWrapped = true
+consoleText.TextColor3 = Color3.new(1,1,1)
+consoleText.Font = Enum.Font.SourceSans
+consoleText.TextSize = 16
+consoleText.Text = ""
+
+-- ======= Functions =======
+
+-- Toggle console visibility
+outputButton.MouseButton1Click:Connect(function()
+	consoleFrame.Visible = not consoleFrame.Visible
 end)
-if not ok or not Rayfield then
-	warn("Failed to load Rayfield:", Rayfield)
-	return
-end
 
--- Window + Main tab
-local Window = Rayfield:CreateWindow({
-	Name = "Brookhaven M2 Script by Charz",
-	LoadingTitle = "Loading Brookhaven M2 Script...",
-	LoadingSubtitle = "By Charz 😎",
-	ConfigurationSaving = { Enabled = false }
-})
+-- Run code
+runButton.MouseButton1Click:Connect(function()
+	RunCodeEvent:FireServer(input.Text)
+end)
 
-local Tab = Window:CreateTab("Main", 4483362458)
-
--- Global variable for target player name
-_G.TargetPlayerName = ""
-
--- Textbox: Target Player Name
-Tab:CreateTextbox({
-	Name = "Target Player",
-	PlaceholderText = "Type player name here...",
-	RemoveTextAfterFocusLost = false,
-	Callback = function(playerName)
-		_G.TargetPlayerName = playerName
-	end
-})
-
--- Bring Player mechanism
-local function BringPlayer(targetName)
-	local LocalPlayer = Players.LocalPlayer
-	if not targetName or targetName == "" then
-		Rayfield:Notify({
-			Title = "Error",
-			Content = "No player name entered!",
-			Duration = 3
-		})
-		return
-	end
-
-	local targetPlayer = Players:FindFirstChild(targetName)
-	if not targetPlayer then
-		Rayfield:Notify({
-			Title = "Error",
-			Content = targetName .. " not found!",
-			Duration = 3
-		})
-		return
-	end
-
-	-- Grab tool loop
-	spawn(function()
-		while targetPlayer and targetPlayer.Parent do
-			local tool = (targetPlayer.Backpack and targetPlayer.Backpack:FindFirstChildOfClass("Tool")) 
-						or (targetPlayer.Character and targetPlayer.Character:FindFirstChildOfClass("Tool"))
-			if tool and LocalPlayer.Character then
-				tool.Parent = LocalPlayer.Backpack
-			end
-			task.wait(0.5)
-		end
-	end)
-
-	-- Teleport the player to you when tool is activated
-	local function onToolActivated(tool)
-		if targetPlayer.Character and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-			local myHRP = LocalPlayer.Character.HumanoidRootPart
-			targetPlayer.Character:WaitForChild("HumanoidRootPart").CFrame = myHRP.CFrame + Vector3.new(0,0,5)
-			Rayfield:Notify({
-				Title = "Tool Activated!",
-				Content = targetPlayer.Name .. " has been teleported to you!",
-				Duration = 3
-			})
-		end
-	end
-
-	if targetPlayer.Backpack then
-		for _, tool in ipairs(targetPlayer.Backpack:GetChildren()) do
-			if tool:IsA("Tool") then
-				tool.Activated:Connect(function() onToolActivated(tool) end)
-			end
-		end
-	end
-	if targetPlayer.Character then
-		for _, tool in ipairs(targetPlayer.Character:GetChildren()) do
-			if tool:IsA("Tool") then
-				tool.Activated:Connect(function() onToolActivated(tool) end)
-			end
-		end
-	end
-end
-
--- Button: Bring Player
-Tab:CreateButton({
-	Name = "Bring Player",
-	Callback = function()
-		BringPlayer(_G.TargetPlayerName)
-	end
-})
-
-print("Brookhaven M2 Script loaded! Main tab and Bring Player button ready.")
+-- Receive server output
+RemoteOutput.OnClientEvent:Connect(function(msg)
+	consoleText.Text = consoleText.Text .. "\n" .. msg
+	-- Auto scroll to bottom
+	consoleFrame.CanvasPosition = Vector2.new(0, consoleText.TextBounds.Y)
+end)
