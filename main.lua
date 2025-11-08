@@ -1,105 +1,118 @@
---// Mini Editor All-in-One LocalScript
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local StarterGui = game:GetService("StarterGui")
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
+-- Simple Rayfield UI (no exploit-checker fallbacks)
+-- NOTE: This uses game:HttpGet directly. If your environment doesn't expose Game:HttpGet, this will error.
 
--- Ensure RemoteEvents exist
-local RunCodeEvent = ReplicatedStorage:FindFirstChild("RunCodeEvent") or Instance.new("RemoteEvent", ReplicatedStorage)
-RunCodeEvent.Name = "RunCodeEvent"
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local RemoteOutput = ReplicatedStorage:FindFirstChild("RemoteOutput") or Instance.new("RemoteEvent", ReplicatedStorage)
-RemoteOutput.Name = "RemoteOutput"
+-- Create window
+local Window = Rayfield:CreateWindow({
+    Name = "pastagame UI (Rayfield)",
+    LoadingTitle = "pastagame",
+    LoadingSubtitle = "rayfield example",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "PastagameConfigs",
+        FileName = "default"
+    },
+    KeySystem = false
+})
 
--- Create ScreenGui
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MiniEditorGUI"
-screenGui.Parent = StarterGui
-screenGui.ResetOnSpawn = false
+-- Main tab + section
+local MainTab = Window:CreateTab("Main")
+local MainSection = MainTab:CreateSection("Main Controls")
 
--- ======= Input TextBox =======
-local input = Instance.new("TextBox")
-input.Name = "Input"
-input.Parent = screenGui
-input.Size = UDim2.new(1, -20, 0, 200)
-input.Position = UDim2.new(0, 10, 0, 10)
-input.BackgroundColor3 = Color3.fromRGB(30,30,30)
-input.TextColor3 = Color3.new(1,1,1)
-input.Font = Enum.Font.SourceSans
-input.TextSize = 18
-input.MultiLine = true
-input.ClearTextOnFocus = false
-input.TextWrapped = false
-input.PlaceholderText = "Type Lua code here..."
-input.TextXAlignment = Enum.TextXAlignment.Left
-input.TextYAlignment = Enum.TextYAlignment.Top
-input.LineHeight = 1.2
+-- Toggle example
+MainTab:CreateToggle({
+    Name = "Auto Farm",
+    CurrentValue = false,
+    Flag = "AutoFarmToggle",
+    Callback = function(state)
+        print("Auto Farm:", state)
+        if state then
+            _G._pastagame_auto_farm = true
+            spawn(function()
+                while _G._pastagame_auto_farm do
+                    pcall(function()
+                        -- game-specific action here
+                    end)
+                    wait(1)
+                end
+            end)
+        else
+            _G._pastagame_auto_farm = false
+        end
+    end
+})
 
--- ======= Run Button =======
-local runButton = Instance.new("TextButton")
-runButton.Name = "RunButton"
-runButton.Parent = screenGui
-runButton.Size = UDim2.new(0, 100, 0, 40)
-runButton.Position = UDim2.new(0, 10, 0, 220)
-runButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
-runButton.TextColor3 = Color3.new(1,1,1)
-runButton.Font = Enum.Font.SourceSansBold
-runButton.TextSize = 18
-runButton.Text = "Run"
+-- Slider example (walkspeed)
+MainTab:CreateSlider({
+    Name = "WalkSpeed",
+    Range = {16, 250},
+    Increment = 1,
+    Suffix = "studs",
+    CurrentValue = 16,
+    Flag = "WalkSpeedSlider",
+    Callback = function(val)
+        local plr = game:GetService("Players").LocalPlayer
+        if plr and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") then
+            pcall(function() plr.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = val end)
+        end
+    end
+})
 
--- ======= Output Button =======
-local outputButton = Instance.new("TextButton")
-outputButton.Name = "OutputButton"
-outputButton.Parent = screenGui
-outputButton.Size = UDim2.new(0, 100, 0, 40)
-outputButton.Position = UDim2.new(0, 120, 0, 220)
-outputButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
-outputButton.TextColor3 = Color3.new(1,1,1)
-outputButton.Font = Enum.Font.SourceSansBold
-outputButton.TextSize = 18
-outputButton.Text = "Output"
+-- Textbox example (teleport to player)
+MainTab:CreateTextBox({
+    Name = "Teleport To (player name)",
+    Placeholder = "playerName",
+    TextDisappear = true,
+    Callback = function(txt)
+        local plr = game:GetService("Players").LocalPlayer
+        local target = game:GetService("Players"):FindFirstChild(txt)
+        if plr and plr.Character and target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            pcall(function()
+                plr.Character:SetPrimaryPartCFrame(target.Character.PrimaryPart.CFrame + Vector3.new(2,0,0))
+            end)
+        else
+            Rayfield:Notify({ Title = "Teleport", Content = "player not found or no character", Duration = 3 })
+        end
+    end
+})
 
--- ======= Console Frame =======
-local consoleFrame = Instance.new("ScrollingFrame")
-consoleFrame.Name = "ConsoleFrame"
-consoleFrame.Parent = screenGui
-consoleFrame.Size = UDim2.new(1, -20, 0, 200)
-consoleFrame.Position = UDim2.new(0, 10, 0, 270)
-consoleFrame.BackgroundColor3 = Color3.fromRGB(20,20,20)
-consoleFrame.Visible = false
-consoleFrame.ScrollBarThickness = 6
-consoleFrame.CanvasSize = UDim2.new(0,0,0,0)
-consoleFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+-- Button example
+MainTab:CreateButton({
+    Name = "Do a thing",
+    Callback = function()
+        print("button pressed, do your thing here")
+        Rayfield:Notify({ Title = "Button", Content = "button pressed!", Duration = 2 })
+    end
+})
 
-local consoleText = Instance.new("TextLabel")
-consoleText.Name = "ConsoleText"
-consoleText.Parent = consoleFrame
-consoleText.Size = UDim2.new(1,0,0,0)
-consoleText.Position = UDim2.new(0,0,0,0)
-consoleText.BackgroundTransparency = 1
-consoleText.TextXAlignment = Enum.TextXAlignment.Left
-consoleText.TextYAlignment = Enum.TextYAlignment.Top
-consoleText.TextWrapped = true
-consoleText.TextColor3 = Color3.new(1,1,1)
-consoleText.Font = Enum.Font.SourceSans
-consoleText.TextSize = 16
-consoleText.Text = ""
+-- Keybind example (toggle UI)
+MainTab:CreateKeyBind({
+    Name = "Toggle UI",
+    CurrentKey = "RightShift",
+    Mode = "Toggle",
+    Flag = "ToggleUIKeybind",
+    Callback = function()
+        Rayfield:Toggle()
+    end
+})
 
--- ======= Functions =======
+-- Color picker example
+MainTab:CreateColorPicker({
+    Name = "Example Color",
+    Default = Color3.fromRGB(255,255,255),
+    Flag = "ExampleColor",
+    Callback = function(color)
+        print("picked color:", color)
+    end
+})
 
--- Toggle console visibility
-outputButton.MouseButton1Click:Connect(function()
-	consoleFrame.Visible = not consoleFrame.Visible
-end)
+-- Save config button
+MainTab:CreateButton({
+    Name = "Save Config (manual notify)",
+    Callback = function()
+        Rayfield:Notify({ Title = "Config", Content = "Saved config to folder.", Duration = 2 })
+    end
+})
 
--- Run code
-runButton.MouseButton1Click:Connect(function()
-	RunCodeEvent:FireServer(input.Text)
-end)
-
--- Receive server output
-RemoteOutput.OnClientEvent:Connect(function(msg)
-	consoleText.Text = consoleText.Text .. "\n" .. msg
-	-- Auto scroll to bottom
-	consoleFrame.CanvasPosition = Vector2.new(0, consoleText.TextBounds.Y)
-end)
+Rayfield:Notify({ Title = "Rayfield loaded", Content = "UI ready — tweak flags & callbacks as needed", Duration = 4 })
